@@ -1019,27 +1019,34 @@ function pipClose(){
     else if(pv.webkitSetPresentationMode)pv.webkitSetPresentationMode('inline');
   }catch(e){}
 }
+function pipPrep(){
+  if(pv||!pipSup)return;
+  try{
+    pv=document.createElement('video');pv.muted=true;pv.defaultMuted=true;pv.playsInline=true;
+    pv.setAttribute('playsinline','');pv.setAttribute('muted','');pv.setAttribute('aria-hidden','true');
+    pv.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none';
+    document.body.appendChild(pv);
+    pcx.fillStyle='#000';pcx.fillRect(0,0,640,360);
+    pv.srcObject=pcv.captureStream(10);
+    pv.addEventListener('pause',function(){if(pon)pipKeep()});
+    pv.addEventListener('enterpictureinpicture',pipState);
+    pv.addEventListener('leavepictureinpicture',pipState);
+    pv.addEventListener('webkitpresentationmodechanged',pipState);
+    var r=pv.play();r&&r.catch&&r.catch(function(){});
+  }catch(e){}
+}
+function pipEnter(){if(pv.requestPictureInPicture)return pv.requestPictureInPicture();pv.webkitSetPresentationMode('picture-in-picture')}
 function pipToggle(){
   if(pon){pipClose();return}
+  var fail=function(e){toast('Floating window isn’t available here'+(e&&e.name?' ('+e.name+')':''))};
   try{
-    if(!pv){
-      pv=document.createElement('video');pv.muted=true;pv.defaultMuted=true;pv.playsInline=true;
-      pv.setAttribute('playsinline','');pv.setAttribute('muted','');pv.setAttribute('aria-hidden','true');
-      pv.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none';
-      document.body.appendChild(pv);
-      pv.srcObject=pcv.captureStream(10);
-      pv.addEventListener('pause',function(){if(pon)pipKeep()});
-      pv.addEventListener('enterpictureinpicture',pipState);
-      pv.addEventListener('leavepictureinpicture',pipState);
-      pv.addEventListener('webkitpresentationmodechanged',pipState);
-    }
-    pipDraw();
-    Promise.resolve(pv.play()).then(function(){
-      if(pv.requestPictureInPicture)return pv.requestPictureInPicture();
-      pv.webkitSetPresentationMode('picture-in-picture');
-    }).then(pipState).catch(function(e){toast('Floating window isn’t available here'+(e&&e.name?' ('+e.name+')':''))});
-  }catch(e){toast('Floating window isn’t available here'+(e&&e.name?' ('+e.name+')':''))}
+    pipPrep();if(!pv)throw 0;pipDraw();
+    var pl=pv.play(),first;
+    try{first=Promise.resolve(pipEnter())}catch(e){first=Promise.reject(e)}
+    first.then(pipState).catch(function(){Promise.resolve(pl).then(pipEnter).then(pipState).catch(fail)});
+  }catch(e){fail(e)}
 }
+document.addEventListener('pointerdown',pipPrep,{once:true,passive:true});
 $('pip').onclick=pipToggle;$('tpip').onclick=pipToggle;pipBtns();
 paint();
 })();
